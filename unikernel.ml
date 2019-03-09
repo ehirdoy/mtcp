@@ -1,13 +1,13 @@
 open Lwt.Infix
 
-module Main (S: Mirage_stack_lwt.V4) = struct
+module Main (S: Mirage_stack_lwt.V4) (R: Mirage_random.C) = struct
 
   let sflow : S.TCPV4.flow option ref = ref None
 
   let inc str =
     (String.(get str 0 |> make 1)) ^ str
 
-  let start s =
+  let start s _r =
     let localhost = "127.0.0.1" in
     let dst_addr = Ipaddr.V4.of_string_exn localhost in
     let dst_port = Key_gen.dp () |> int_of_string in
@@ -17,7 +17,7 @@ module Main (S: Mirage_stack_lwt.V4) = struct
     let rec create_sflow count =
       S.TCPV4.create_connection (S.tcpv4 s) (dst_addr, dst_port) >>= function
       | Error _err ->
-        Unix.sleep 1;
+        OS.Time.sleep_ns (Duration.of_sec 1) >>= fun () ->
         Logs.debug (fun f -> f "retry(%d) to connect %s:%d" count localhost dst_port);
         create_sflow (count+1)
       | Ok flow ->
@@ -56,7 +56,7 @@ module Main (S: Mirage_stack_lwt.V4) = struct
         let str = Cstruct.to_string b in
         let addr, port = S.TCPV4.dst flow in
         Logs.debug (fun f -> f "read@%s:%d %dB: %s" (Ipaddr.V4.to_string addr) port (Cstruct.len b) str);
-        Unix.sleep (Random.int 3);
+        OS.Time.sleep_ns (Duration.of_ms (Randomconv.int ~bound:3000 R.generate)) >>= fun () ->
         reply str >>= function
         | Error _ -> assert false
         | Ok () -> callback flow

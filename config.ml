@@ -18,11 +18,13 @@ let keys = List.map Key.abstract [
     ch;
   ]
 
-let main = foreign ~keys "Unikernel.Main" (stackv4 @-> job)
+let packages = [package "duration"; package "randomconv"]
+
+let main = foreign ~keys ~packages "Unikernel.Main" (stackv4 @-> random @-> job)
 
 let stack = generic_stackv4 default_network
 
 let () =
   register "inc" [
-    main $ stack
+    main $ stack $ default_random
   ]
