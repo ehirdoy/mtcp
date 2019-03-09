@@ -39,7 +39,8 @@ module Main (S: Mirage_stack_lwt.V4) (R: Mirage_random.C) = struct
       match !sflow with
       | None ->
         Logs.info (fun f -> f "retry to create sflow");
-        create_sflow 0 >>= fun _ -> reply str
+        OS.Time.sleep_ns (Duration.of_sec 1)
+        >>= fun _ -> reply str
       | Some fl ->
         let buf = inc str in
         let addr, port = S.TCPV4.dst fl in
