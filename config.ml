@@ -1,5 +1,13 @@
 open Mirage
 
+let da =
+  let doc = Key.Arg.info ~doc:"destination IP address to send." ["da"] in
+  Key.(create "da" Arg.(opt string "127.0.0.1" doc))
+
+let sa =
+  let doc = Key.Arg.info ~doc:"source IP address to send." ["sa"] in
+  Key.(create "sa" Arg.(opt string "0.0.0.0" doc))
+
 let dp =
   let doc = Key.Arg.info ~doc:"The TCP port to send." ["dp"] in
   Key.(create "dp" Arg.(opt string "5555" doc))
@@ -13,7 +21,9 @@ let ch =
   Key.(create "ch" Arg.(opt string "x" doc))
 
 let keys = List.map Key.abstract [
+    sa;
     sp;
+    da;
     dp;
     ch;
   ]

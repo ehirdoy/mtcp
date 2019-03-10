@@ -8,20 +8,25 @@ module Main (S: Mirage_stack_lwt.V4) (R: Mirage_random.C) = struct
     (String.(get str 0 |> make 1)) ^ str
 
   let start s _r =
-    let localhost = "127.0.0.1" in
-    let dst_addr = Ipaddr.V4.of_string_exn localhost in
-    let dst_port = Key_gen.dp () |> int_of_string in
-    let src_port = Key_gen.sp () |> int_of_string in
+    let _src_addr, dst_addr =
+      match List.map Ipaddr.V4.of_string_exn [Key_gen.sa (); Key_gen.da ()] with
+      | [sa; da] -> (sa, da)
+      | _ -> assert false in
+    let src_port, dst_port =
+      match List.map int_of_string [Key_gen.sp (); Key_gen.dp ()] with
+      | [sp; dp] -> (sp, dp)
+      | _ -> assert false in
     let ch = Key_gen.ch () in
 
     let rec create_sflow count =
+      let dst = Ipaddr.V4.to_string dst_addr in
       S.TCPV4.create_connection (S.tcpv4 s) (dst_addr, dst_port) >>= function
       | Error _err ->
         OS.Time.sleep_ns (Duration.of_sec 1) >>= fun () ->
-        Logs.debug (fun f -> f "retry(%d) to connect %s:%d" count localhost dst_port);
+        Logs.debug (fun f -> f "retry(%d) to connect %s:%d" count dst dst_port);
         create_sflow (count+1)
       | Ok flow ->
-        Logs.debug (fun f -> f "connected(%d) %s:%d, saving sflow...." count localhost dst_port);
+        Logs.debug (fun f -> f "connected(%d) %s:%d, saving sflow...." count dst dst_port);
         sflow := Some flow;
         Lwt.return_unit
     in
@@ -57,7 +62,7 @@ module Main (S: Mirage_stack_lwt.V4) (R: Mirage_random.C) = struct
         let str = Cstruct.to_string b in
         let addr, port = S.TCPV4.dst flow in
         Logs.debug (fun f -> f "read@%s:%d %dB: %s" (Ipaddr.V4.to_string addr) port (Cstruct.len b) str);
-        OS.Time.sleep_ns (Duration.of_ms (Randomconv.int ~bound:3000 R.generate)) >>= fun () ->
+        OS.Time.sleep_ns (Duration.of_ms (Randomconv.int ~bound:3000 (fun x -> R.generate x))) >>= fun () ->
         reply str >>= function
         | Error _ -> assert false
         | Ok () -> callback flow
