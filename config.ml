@@ -1,5 +1,7 @@
 open Mirage
 
+let disk = generic_kv_ro "t"
+
 let port =
   let doc = Key.Arg.info ~doc:"Port to send & receive" ["port"] in
   Key.(create "port" Arg.(opt string "6666" doc))
@@ -15,11 +17,11 @@ let keys = List.map Key.abstract [
 
 let packages = [package "duration"; package "randomconv"]
 
-let main = foreign ~keys ~packages "Unikernel.Main" (stackv4 @-> random @-> job)
+let main = foreign ~keys ~packages "Unikernel.Main" (stackv4 @-> random @-> kv_ro @-> job)
 
 let stack = generic_stackv4 default_network
 
 let () =
   register "size" [
-    main $ stack $ default_random
+    main $ stack $ default_random $ disk
   ]

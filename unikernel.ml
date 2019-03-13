@@ -1,8 +1,13 @@
 open Lwt.Infix
 
-module Main (S: Mirage_stack_lwt.V4) (R: Mirage_random.C) = struct
+module Main (S: Mirage_stack_lwt.V4) (R: Mirage_random.C) (KV: Mirage_kv_lwt.RO) = struct
 
-  let start s _r =
+  let read_whole_file kv key =
+    KV.size kv key >>= function
+    | Error e -> Lwt.return @@ Error e
+    | Ok size -> KV.read kv key 0L size
+
+  let start s _r kv =
     let port = Key_gen.port () |> int_of_string in
     let _size = Key_gen.size () |> int_of_string in
 
@@ -26,9 +31,15 @@ module Main (S: Mirage_stack_lwt.V4) (R: Mirage_random.C) = struct
       | Error _err -> OS.Time.sleep_ns (Duration.of_sec 1) >>= fun () -> send_data ()
       | Ok flow ->
         Logs.debug (fun f -> f "connected port %d" port);
-        S.TCPV4.write flow (Cstruct.of_string "Hello") >>= function
-        | Error _ -> assert false
-        | Ok () -> Lwt.return_unit
+        read_whole_file kv "secret" >>= function
+        | Error e ->
+          Logs.warn (fun f -> f "Could not compare the secret against a known constant: %a"
+                        KV.pp_error e); Lwt.return_unit
+        | Ok stored_secret ->
+          let buf = Cstruct.concat stored_secret in
+          S.TCPV4.write flow buf >>= function
+          | Error _ -> assert false
+          | Ok () -> Logs.info (fun f -> f "Write out %dBytes" (Cstruct.len buf)); Lwt.return_unit
     in
 
     Lwt.join [
