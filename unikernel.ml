@@ -18,9 +18,8 @@ module Main (S: Mirage_stack_lwt.V4) (R: Mirage_random.C) (KV: Mirage_kv_lwt.RO)
                      (fun f -> f "Error reading data from established connection: %a"
                          S.TCPV4.pp_error e); Lwt.return_unit
       | Ok (`Data data) ->
-        let str = Cstruct.to_string data in
         let addr, port = S.TCPV4.dst flow in
-        Logs.debug (fun f -> f "read@%s:%d %dBytes: %s" (Ipaddr.V4.to_string addr) port (Cstruct.len data) str);
+        Logs.debug (fun f -> f "read@%s:%d %d bytes" (Ipaddr.V4.to_string addr) port (Cstruct.len data));
         callback flow
     in
     S.listen_tcpv4 s ~port:port callback;
@@ -39,7 +38,7 @@ module Main (S: Mirage_stack_lwt.V4) (R: Mirage_random.C) (KV: Mirage_kv_lwt.RO)
           let buf = Cstruct.concat stored_secret in
           S.TCPV4.write flow buf >>= function
           | Error _ -> assert false
-          | Ok () -> Logs.info (fun f -> f "Write out %dBytes" (Cstruct.len buf)); Lwt.return_unit
+          | Ok () -> Logs.info (fun f -> f "Write out %d bytes" (Cstruct.len buf)); Lwt.return_unit
     in
 
     Lwt.join [
