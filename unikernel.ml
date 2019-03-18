@@ -8,40 +8,44 @@ module Main (S: Mirage_stack_lwt.V4) (R: Mirage_random.C) (KV: Mirage_kv_lwt.RO)
     buf  : bytes;
   }
 
-  type pbuf = {
-    len : int;
-    bufs: bytes list;
-  }
+  module Pbuf = struct
 
-  let pbuf = ref {
-      len = 0;
-      bufs = [];
+    type t = {
+      len : int;
+      bufs: bytes list;
     }
 
-  let pbuf_add bytes =
-    if !pbuf.len = 0 then
-      pbuf := {
-        len = Marshal.total_size bytes 0;
-        bufs = bytes :: !pbuf.bufs;
-      }
-    else
-      pbuf := {
-        len = !pbuf.len;
-        bufs = bytes :: !pbuf.bufs;
+    let cxt = ref {
+        len = 0;
+        bufs = [];
       }
 
-  let pbuf_is_filled () =
-    !pbuf.len = List.fold_left (fun a el -> a + Bytes.length el) 0 !pbuf.bufs
+    let add bytes =
+      if !cxt.len = 0 then
+        cxt := {
+          len = Marshal.total_size bytes 0;
+          bufs = bytes :: !cxt.bufs;
+        }
+      else
+        cxt := {
+          len = !cxt.len;
+          bufs = bytes :: !cxt.bufs;
+        }
 
-  let pbuf_bufs () =
-    Logs.info (fun f -> f "concatinating %d bufs" (List.length !pbuf.bufs));
-    let bytes = Bytes.concat Bytes.empty (List.rev !pbuf.bufs) in
-    pbuf := { len = 0; bufs = []; };
-    bytes
+    let is_filled () =
+      !cxt.len = List.fold_left (fun a el -> a + Bytes.length el) 0 !cxt.bufs
 
-  let pbuf_restore () =
-    let out = Marshal.from_string (Bytes.to_string (pbuf_bufs ())) 0 in
-    Logs.info (fun f -> f "restoring name=%s age=%d buf=%d" out.name out.age (Bytes.length out.buf))
+    let bufs () =
+      Logs.info (fun f -> f "concatinating %d bufs" (List.length !cxt.bufs));
+      let bytes = Bytes.concat Bytes.empty (List.rev !cxt.bufs) in
+      cxt := { len = 0; bufs = []; };
+      bytes
+
+    let restore () =
+      let out = Marshal.from_string (Bytes.to_string (bufs ())) 0 in
+      Logs.info (fun f -> f "restoring name=%s age=%d buf=%d" out.name out.age (Bytes.length out.buf))
+
+  end
 
   let read_whole_file kv key =
     KV.size kv key >>= function
@@ -60,9 +64,9 @@ module Main (S: Mirage_stack_lwt.V4) (R: Mirage_random.C) (KV: Mirage_kv_lwt.RO)
                          S.TCPV4.pp_error e); Lwt.return_unit
       | Ok (`Data data) ->
         let bytes = Cstruct.to_bytes data in
-        pbuf_add bytes;
-        if pbuf_is_filled () then
-          pbuf_restore ();
+        Pbuf.add bytes;
+        if Pbuf.is_filled () then
+          Pbuf.restore ();
         callback flow
     in
     S.listen_tcpv4 s ~port:port callback;
